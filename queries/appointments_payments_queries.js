@@ -128,9 +128,6 @@ with appointments as (
 		pm.photoPath,
 		pm.patientId,
 		pm.id as patientAutoId,
-		pm.isZeroRegistration,
-		pm.zeroRegistrationCode,
-		pm.aadhaarCard,
 		0 as isPackageExists,
 		(
 		    CASE 
@@ -215,9 +212,6 @@ with appointments as (
 		pm.photoPath,
 		pm.patientId,
 		pm.id as patientAutoId,
-		pm.isZeroRegistration,
-		pm.zeroRegistrationCode,
-		pm.aadhaarCard,
 		(
 			select ttm.isPackageExists from treatment_type_master ttm where ttm.id = vtca.treatmentTypeId
 		) as isPackageExists,
@@ -501,8 +495,8 @@ SELECT JSON_OBJECT(
 FROM visit_treatment_cycles_associations vtca 
 INNER JOIN patient_visits_association pva ON pva.id = vtca.visitId 
 LEFT JOIN visit_packages_associations vpa ON vpa.visitId = vtca.visitId 
-LEFT JOIN treatment_timestamps tt ON tt.visitId = vtca.visitId AND tt.treatmentType = :treatmentType
-WHERE vtca.visitId = :visitId AND vtca.treatmentTypeId = :treatmentType;
+LEFT JOIN treatment_timestamps tt ON tt.visitId = vtca.visitId 
+WHERE vtca.visitId = :visitId;
 `;
 
 const checkFinalConsultationExistsQuery = `
@@ -1377,15 +1371,11 @@ ranked_appointments.appointmentId = :appointmentId and ranked_appointments.type 
 `;
 
 const getAllActiveVisitAppointmentsQuery = `
-select caa.id as appointmentId, caa.appointmentDate, u.fullName as doctorName, 'Consultation' as type 
-from consultation_appointments_associations caa 
+select caa.id as appointmentId, caa.appointmentDate,(select u.fullName from users u where u.id = caa.consultationDoctorId) as doctorName, 'Consultation' as type from consultation_appointments_associations caa 
 INNER JOIN visit_consultations_associations vca on vca.id = caa.consultationId and vca.visitId = :activeVisitId
-LEFT JOIN users u on u.id = caa.consultationDoctorId
-UNION ALL
-select taa.id as appointmentId, taa.appointmentDate, u2.fullName as doctorName, 'Treatment' as type 
-from treatment_appointments_associations taa 
-INNER JOIN visit_treatment_cycles_associations vtca on vtca.id = taa.treatmentCycleId and vtca.visitId = :activeVisitId
-LEFT JOIN users u2 on u2.id = taa.consultationDoctorId
+UNION
+select taa.id as appointmentId,  taa.appointmentDate,(select u.fullName from users u where u.id = taa.consultationDoctorId) as doctorName , 'Treatment' as type from treatment_appointments_associations taa 
+INNER JOIN visit_treatment_cycles_associations vtca on vtca.id = taa.treatmentCycleId  and vtca.visitId = :activeVisitId
 `;
 
 module.exports = {

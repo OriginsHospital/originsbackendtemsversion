@@ -41,49 +41,17 @@ class OtherPaymentsService extends BaseService {
       this._request.body
     );
 
-    // Use raw SQL to handle both old and new column names during migration
-    const appointmentReasonValue = validatedPayload?.appointmentReason;
-    
-    // Try inserting with appointmentReason first, fallback to billingCategory if column doesn't exist
-    try {
-      await this.mysqlConnection.query(
-        `INSERT INTO patient_other_payment_associations 
-         (patientId, appointmentReason, amount, createdBy, createdAt, updatedAt) 
-         VALUES (:patientId, :appointmentReason, :amount, :createdBy, NOW(), NOW())`,
-        {
-          replacements: {
-            patientId: validatedPayload?.patientId,
-            appointmentReason: appointmentReasonValue,
-            amount: validatedPayload?.amount,
-            createdBy: this._request.userDetails?.id
-          },
-          type: Sequelize.QueryTypes.INSERT
-        }
+    await PatientOtherPaymentsAssociationModel.create({
+      patientId: validatedPayload?.patientId,
+      appointmentReason: validatedPayload?.appointmentReason,
+      amount: validatedPayload?.amount,
+      createdBy: this._request.userDetails?.id
+    }).catch(err => {
+      console.log("Error while adding other payment", err);
+      throw new createError.InternalServerError(
+        Constants.SOMETHING_ERROR_OCCURRED
       );
-    } catch (err) {
-      // If appointmentReason column doesn't exist, use billingCategory for backward compatibility
-      if (err.message && err.message.includes('appointmentReason')) {
-        await this.mysqlConnection.query(
-          `INSERT INTO patient_other_payment_associations 
-           (patientId, billingCategory, amount, createdBy, createdAt, updatedAt) 
-           VALUES (:patientId, :billingCategory, :amount, :createdBy, NOW(), NOW())`,
-          {
-            replacements: {
-              patientId: validatedPayload?.patientId,
-              billingCategory: appointmentReasonValue,
-              amount: validatedPayload?.amount,
-              createdBy: this._request.userDetails?.id
-            },
-            type: Sequelize.QueryTypes.INSERT
-          }
-        );
-      } else {
-        console.log("Error while adding other payment", err);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      }
-    }
+    });
 
     return Constants.SUCCESS;
   }

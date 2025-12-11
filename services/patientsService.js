@@ -62,26 +62,13 @@ class PatientsService extends BaseService {
     return `${branchCode}${paddedId}`;
   }
 
-  generateZeroRegistrationCode(branchId) {
-    const branchCode = this.getBranchCode(branchId) || "ORI";
-    const randomCode = Math.floor(100000 + Math.random() * 900000);
-    return `ZR-${branchCode}-${randomCode}`;
-  }
-
-  isRegistrationComplete(aadhaarNo, aadhaarCard) {
-    return !!(aadhaarNo && aadhaarCard);
-  }
-
   async searchPatientService() {
     const givenPatientData = this._request.params.data.trim();
-    if (lodash.isEmpty(givenPatientData)) {
-      throw new createError.BadRequest(Constants.NO_PATIENT_FOUND);
-    }
     let existingPatient = await this.mysqlConnection
       .query(searchPatientByAadhaarQuery, {
         type: Sequelize.QueryTypes.SELECT,
         replacements: {
-          searchKey: givenPatientData
+          aadhaarNo: givenPatientData
         }
       })
       .catch(err => {
@@ -161,36 +148,17 @@ class PatientsService extends BaseService {
 
   async createPatientService() {
     const createdByUserId = this._request?.userDetails?.id;
-    const validatedData = await createPatientSchema
-      .validateAsync(this._request.body)
-      .catch(() => {
-        throw new createError.BadRequest(Constants.PATIENT_DETAILS_INVALID);
-      });
-    validatedData.createdBy = createdByUserId;
-
-    const hasAadhaarNumber = !!validatedData.aadhaarNo;
-    const hasAadhaarCardFile =
-      this._request.files && this._request.files.aadhaarCard;
-    const registrationComplete = this.isRegistrationComplete(
-      validatedData.aadhaarNo,
-      hasAadhaarCardFile
+    const validatedData = await createPatientSchema.validateAsync(
+      this._request.body
     );
-    const computedZeroRegistration =
-      validatedData.isZeroRegistration || !registrationComplete;
-
-    if (!computedZeroRegistration && !hasAadhaarCardFile) {
-      throw new createError.BadRequest(
-        Constants.AADHAAR_DOC_REQUIRED_FOR_REGISTRATION
-      );
-    }
-
-    const uniqueChecks = [];
-    if (hasAadhaarNumber) uniqueChecks.push({ aadhaarNo: validatedData.aadhaarNo });
-    uniqueChecks.push({ mobileNo: validatedData.mobileNo });
+    validatedData.createdBy = createdByUserId;
 
     const existingPatient = await PatientMasterModel.findOne({
       where: {
-        [Sequelize.Op.or]: uniqueChecks
+        [Sequelize.Op.or]: [
+          { aadhaarNo: validatedData.aadhaarNo },
+          { mobileNo: validatedData.mobileNo }
+        ]
       }
     });
 
@@ -199,20 +167,9 @@ class PatientsService extends BaseService {
     }
 
     return await this.mysqlConnection.transaction(async t => {
-      const zeroRegistrationCode = computedZeroRegistration
-        ? this.generateZeroRegistrationCode(validatedData.branchId)
-        : null;
-
-      const newPatientRecord = await PatientMasterModel.create(
-        {
-          ...validatedData,
-          isZeroRegistration: computedZeroRegistration,
-          zeroRegistrationCode
-        },
-        {
-          transaction: t
-        }
-      ).catch(err => {
+      const newPatientRecord = await PatientMasterModel.create(validatedData, {
+        transaction: t
+      }).catch(err => {
         console.log("Error while creating new patient", err);
         throw new createError.InternalServerError(
           Constants.SOMETHING_ERROR_OCCURRED
@@ -488,11 +445,9 @@ class PatientsService extends BaseService {
 
   async editPatientService() {
     const createdByUserId = this._request?.userDetails?.id;
-    const validatedEditData = await editPatientSchema
-      .validateAsync(this._request.body)
-      .catch(() => {
-        throw new createError.BadRequest(Constants.PATIENT_DETAILS_INVALID);
-      });
+    const validatedEditData = await editPatientSchema.validateAsync(
+      this._request.body
+    );
 
     const isExistedPatient = await PatientMasterModel.findOne({
       where: { id: validatedEditData.id }
@@ -507,15 +462,12 @@ class PatientsService extends BaseService {
       throw new createError.BadRequest(Constants.PATIENT_DOES_NOT_EXIST);
     }
 
-    const uniqueChecks = [];
-    if (validatedEditData.aadhaarNo) {
-      uniqueChecks.push({ aadhaarNo: validatedEditData.aadhaarNo });
-    }
-    uniqueChecks.push({ mobileNo: validatedEditData.mobileNo });
-
     const isAadhaarExists = await PatientMasterModel.findOne({
       where: {
-        [Sequelize.Op.or]: uniqueChecks,
+        [Sequelize.Op.or]: [
+          { aadhaarNo: validatedEditData.aadhaarNo },
+          { mobileNo: validatedEditData.mobileNo }
+        ],
         id: { [Sequelize.Op.ne]: validatedEditData.id }
       }
     });
@@ -572,33 +524,6 @@ class PatientsService extends BaseService {
       documentPaths = await Promise.all(documentUploadPromises);
     }
 
-    const hasAadhaarCard =
-      validatedEditData.aadhaarCard || isExistedPatient.dataValues.aadhaarCard;
-    const registrationComplete = this.isRegistrationComplete(
-      validatedEditData.aadhaarNo,
-      hasAadhaarCard
-    );
-    const computedZeroRegistration =
-      validatedEditData.isZeroRegistration || !registrationComplete;
-
-    if (!computedZeroRegistration && !hasAadhaarCard) {
-      throw new createError.BadRequest(
-        Constants.AADHAAR_DOC_REQUIRED_FOR_REGISTRATION
-      );
-    }
-
-    const zeroRegistrationCode = computedZeroRegistration
-      ? isExistedPatient.dataValues.zeroRegistrationCode ||
-        this.generateZeroRegistrationCode(
-          validatedEditData.branchId || isExistedPatient.dataValues.branchId
-        )
-      : null;
-
-    const updatedDocuments =
-      documentPaths.length > 0
-        ? documentPaths
-        : isExistedPatient.dataValues.uploadedDocuments;
-
     await PatientMasterModel.update(
       {
         branchId: validatedEditData.branchId,
@@ -624,9 +549,7 @@ class PatientsService extends BaseService {
         marriageCertificate: validatedEditData.marriageCertificate,
         affidavit: validatedEditData.affidavit,
         updatedBy: createdByUserId,
-        uploadedDocuments: updatedDocuments,
-        isZeroRegistration: computedZeroRegistration,
-        zeroRegistrationCode
+        uploadedDocuments: documentPaths
       },
       { where: { id: isExistedPatient.dataValues.id } }
     ).catch(err => {

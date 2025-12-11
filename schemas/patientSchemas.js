@@ -1,17 +1,9 @@
 const Joi = require("@hapi/joi");
 
 const createPatientSchema = Joi.object({
-  isZeroRegistration: Joi.boolean().optional().default(false),
-  aadhaarNo: Joi.alternatives().conditional("isZeroRegistration", {
-    is: true,
-    then: Joi.string()
-      .allow("")
-      .allow(null)
-      .optional(),
-    otherwise: Joi.string()
-      .length(12)
-      .required()
-  }),
+  aadhaarNo: Joi.string()
+    .length(12)
+    .required(),
   branchId: Joi.number().required(),
   mobileNo: Joi.string()
     .regex(/^[6-9]\d{9}$/)
@@ -128,20 +120,12 @@ const editPatientSchema = Joi.object({
   id: Joi.number()
     .integer()
     .required(),
-  isZeroRegistration: Joi.boolean().optional().default(false),
   branchId: Joi.number()
     .integer()
     .required(),
-  aadhaarNo: Joi.alternatives().conditional("isZeroRegistration", {
-    is: true,
-    then: Joi.string()
-      .allow("")
-      .allow(null)
-      .optional(),
-    otherwise: Joi.string()
-      .length(12)
-      .required()
-  }),
+  aadhaarNo: Joi.string()
+    .length(12)
+    .required(),
   mobileNo: Joi.string()
     .regex(/^[6-9]\d{9}$/)
     .required(),

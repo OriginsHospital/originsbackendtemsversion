@@ -92,12 +92,6 @@ const AppointmentReasonMaster = require("../models/Master/appointmentReasonMaste
 const AppointmentChargesBranchAssociation = require("../models/Associations/appointmentChargesBranchAssocitation");
 const VisitTreatmentsAssociations = require("../models/Associations/visitTreatmentsAssociations");
 const TreatmentEraSheetAssociations = require("../models/Associations/treatmentEraSheetsAssociations");
-const VisitHysteroscopyAssociations = require("../models/Associations/visitHysteroscopyAssociations");
-const {
-  createHysteroscopyReportSchema,
-  updateHysteroscopyReportSchema,
-  getHysteroscopyReportSchema
-} = require("../schemas/hysteroscopySchema");
 class AppointmentsPaymentService extends BaseService {
   constructor(request, response, next) {
     super(request, response, next);
@@ -106,54 +100,6 @@ class AppointmentsPaymentService extends BaseService {
     this._next = next;
     this.mysqlConnection = MySqlConnection._instance;
     this.htmlTemplateGenerationObj = new GenerateHtmlTemplate();
-  }
-
-  async getPatientByVisitId(visitId) {
-    const visit = await patientVisitsAssociation.findOne({
-      where: { id: visitId }
-    });
-    if (lodash.isEmpty(visit)) {
-      throw new createError.BadRequest(Constants.VISIT_WITH_PATIENT_NOT_FOUND);
-    }
-    const patient = await PatientMasterModel.findOne({
-      where: { id: visit.dataValues.patientId }
-    });
-    if (lodash.isEmpty(patient)) {
-      throw new createError.BadRequest(Constants.PATIENT_NOT_FOUND);
-    }
-    return patient.dataValues;
-  }
-
-  async getPatientByConsultationId(consultationId) {
-    const consultation = await visitConsultationsAssociations.findOne({
-      where: { id: consultationId }
-    });
-    if (lodash.isEmpty(consultation)) {
-      throw new createError.BadRequest(Constants.CONSULTATION_NOT_FOUND_FOR_VISIT);
-    }
-    return await this.getPatientByVisitId(consultation.dataValues.visitId);
-  }
-
-  async getPatientByTreatmentCycleId(treatmentCycleId) {
-    const treatmentCycle = await VisitTreatmentsAssociations.findOne({
-      where: { id: treatmentCycleId }
-    });
-    if (lodash.isEmpty(treatmentCycle)) {
-      throw new createError.BadRequest(Constants.TREATMENT_NOT_FOUND);
-    }
-    return await this.getPatientByVisitId(treatmentCycle.dataValues.visitId);
-  }
-
-  assertRegistrationCompleted(patientData) {
-    const needsDocs =
-      patientData.isZeroRegistration ||
-      !patientData.aadhaarNo ||
-      !patientData.aadhaarCard;
-    if (needsDocs) {
-      throw new createError.BadRequest(
-        Constants.AADHAAR_REQUIRED_FOR_APPOINTMENT
-      );
-    }
   }
 
   /*
@@ -285,11 +231,6 @@ class AppointmentsPaymentService extends BaseService {
     const payload = await consultationBookAppointmentSchema.validateAsync(
       this._request.body
     );
-
-    const patientData = await this.getPatientByConsultationId(
-      payload.consultationId
-    );
-    this.assertRegistrationCompleted(patientData);
 
     const patientAppointmentAlreadyExists = await this.mysqlConnection
       .query(checkAppointmentExistsOnSameDateQuery, {
@@ -1397,11 +1338,6 @@ class AppointmentsPaymentService extends BaseService {
       this._request.body
     );
 
-    const patientData = await this.getPatientByTreatmentCycleId(
-      payload.treatmentCycleId
-    );
-    this.assertRegistrationCompleted(patientData);
-
     const patientAppointmentAlreadyExists = await this.mysqlConnection
       .query(checkAppointmentExistsOnSameDateQuery, {
         type: Sequelize.QueryTypes.SELECT,
@@ -1802,68 +1738,29 @@ class AppointmentsPaymentService extends BaseService {
   ) {
     if (updateType == "START_ICSI") {
       /*
-        1. Check if record exists, if not create it
-        2. UpdateEntry in the Trigger TimeStamps
-        3. Update DAY 1 Date in packages
-        4. Generate the Follicular Sheet and Return it. For some treatments we dont need sheet
+        1. UpdateEntry in the Trigger TimeStamps
+        2. Update DAY 1 Date in packages
+        3. Generate the Follicular Sheet and Return it. For some treatments we dont need sheet
       */
 
-      // Check if record already exists
-      const existingRecord = await TriggerTimeStampsMaster.findOne({
-        where: {
+      await TriggerTimeStampsMaster.create(
+        {
           visitId: visitId,
-          treatmentType: treatmentType
+          treatmentType,
+          startDate: moment()
+            .tz("Asia/Kolkata")
+            .format("YYYY-MM-DD HH:mm:ss"),
+          startedBy: this._request?.userDetails?.id
         },
-        transaction: transaction
-      });
-
-      if (existingRecord) {
-        // Record exists, update startDate if it's null
-        if (!existingRecord.startDate) {
-          await TriggerTimeStampsMaster.update(
-            {
-              startDate: moment()
-                .tz("Asia/Kolkata")
-                .format("YYYY-MM-DD HH:mm:ss"),
-              startedBy: this._request?.userDetails?.id
-            },
-            {
-              where: {
-                visitId: visitId,
-                treatmentType: treatmentType
-              },
-              transaction: transaction
-            }
-          ).catch(err => {
-            console.log("Error while updating record in timestamps master", err);
-            throw new createError.InternalServerError(
-              Constants.SOMETHING_ERROR_OCCURRED
-            );
-          });
-        } else {
-          console.log(`ICSI already started for visitId=${visitId}, treatmentType=${treatmentType}`);
+        {
+          transaction: transaction
         }
-      } else {
-        // Create new record
-        await TriggerTimeStampsMaster.create(
-          {
-            visitId: visitId,
-            treatmentType,
-            startDate: moment()
-              .tz("Asia/Kolkata")
-              .format("YYYY-MM-DD HH:mm:ss"),
-            startedBy: this._request?.userDetails?.id
-          },
-          {
-            transaction: transaction
-          }
-        ).catch(err => {
-          console.log("Error while creating record in timestamps master", err);
-          throw new createError.InternalServerError(
-            Constants.SOMETHING_ERROR_OCCURRED
-          );
-        });
-      }
+      ).catch(err => {
+        console.log("Error while adding record in timestamps master", err);
+        throw new createError.InternalServerError(
+          Constants.SOMETHING_ERROR_OCCURRED
+        );
+      });
 
       await VisitPackagesAssociation.update(
         {
@@ -2555,81 +2452,16 @@ class AppointmentsPaymentService extends BaseService {
       updateType == "END_OITI"
     ) {
       /*
-        1. Check if treatment_timestamps record exists
-        2. If not, create it first (treatment was never properly started)
-        3. Then update with endDate, endedReason, endedBy
+        1. UpdateEntry in the Trigger TimeStamps
       */
-      const endedBy = this._request?.userDetails?.id;
-      if (!endedBy) {
-        throw new createError.BadRequest("User details not found. Please ensure you are logged in.");
-      }
-
-      const endDate = moment()
-        .tz("Asia/Kolkata")
-        .format("YYYY-MM-DD HH:mm:ss");
-
-      console.log(`Ending treatment: visitId=${visitId}, treatmentType=${treatmentType}, stage=${updateType}, reason=${endedReason}, endedBy=${endedBy}`);
-
-      // Check if record exists
-      const existingRecord = await TriggerTimeStampsMaster.findOne({
-        where: {
-          visitId: visitId,
-          treatmentType: treatmentType
-        },
-        transaction: transaction
-      });
-
-      // If record doesn't exist, create it first
-      if (!existingRecord) {
-        console.log(`Warning: No treatment_timestamps record found for visitId=${visitId}, treatmentType=${treatmentType}. Creating record...`);
-        
-        // Get visit date to use as default startDate
-        const visitInfo = await patientVisitsAssociation.findOne({
-          where: { id: visitId },
-          attributes: ['visitDate', 'createdAt'],
-          transaction: transaction
-        });
-
-        // Use visitDate if available, otherwise use createdAt, otherwise use current date
-        const defaultStartDate = visitInfo?.visitDate 
-          ? moment(visitInfo.visitDate).tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss")
-          : visitInfo?.createdAt
-          ? moment(visitInfo.createdAt).tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss")
-          : moment().tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss");
-
-        console.log(`Creating treatment_timestamps record with startDate=${defaultStartDate}`);
-
-        // Create the record with startDate and immediately set endDate
-        await TriggerTimeStampsMaster.create(
-          {
-            visitId: visitId,
-            treatmentType: treatmentType,
-            startDate: defaultStartDate,
-            startedBy: endedBy, // Use same user as endedBy since we don't have original starter
-            endedReason: endedReason,
-            endDate: endDate,
-            endedBy: endedBy
-          },
-          {
-            transaction: transaction
-          }
-        ).catch(err => {
-          console.log("Error while creating treatment timestamps record:", err.message);
-          throw new createError.InternalServerError(
-            `Failed to create treatment record: ${err.message}`
-          );
-        });
-
-        console.log(`Successfully created and ended treatment: visitId=${visitId}, treatmentType=${treatmentType}`);
-        return `${updateType.replace('END_', '')} treatment ended successfully (record was created as it did not exist)`;
-      }
-
-      // Record exists, update it
-      const updateResult = await TriggerTimeStampsMaster.update(
+      await TriggerTimeStampsMaster.update(
         {
+          visitId: visitId,
           endedReason: endedReason,
-          endDate: endDate,
-          endedBy: endedBy
+          endDate: moment()
+            .tz("Asia/Kolkata")
+            .format("YYYY-MM-DD HH:mm:ss"),
+          endedBy: this._request?.userDetails?.id
         },
         {
           where: {
@@ -2639,125 +2471,37 @@ class AppointmentsPaymentService extends BaseService {
           transaction: transaction
         }
       ).catch(err => {
-        console.log("Error while updating treatment timestamps:", err.message);
+        console.log("Error while adding record in timestamps master", err);
         throw new createError.InternalServerError(
           Constants.SOMETHING_ERROR_OCCURRED
         );
       });
-
-      // Check if update actually affected any rows (shouldn't happen if record exists, but safety check)
-      if (updateResult[0] === 0) {
-        console.error(`Critical: Record exists but update affected 0 rows for visitId=${visitId}, treatmentType=${treatmentType}`);
-        throw new createError.InternalServerError(
-          "Failed to update treatment status. Please try again."
-        );
-      }
-
-      console.log(`Successfully ended treatment: visitId=${visitId}, treatmentType=${treatmentType}, rowsUpdated=${updateResult[0]}`);
-      
-      return `${updateType.replace('END_', '')} treatment ended successfully`;
     } else if (updateType == "END_FET") {
       /*
-        1. Check if treatment_timestamps record exists
-        2. If not, create it first (treatment was never properly started)
-        3. Then update with fetEndedDate, fetEndedReason, fetEndedBy
+        1. UpdateEntry in the Trigger TimeStamps
       */
-      const fetEndedBy = this._request?.userDetails?.id;
-      if (!fetEndedBy) {
-        throw new createError.BadRequest("User details not found. Please ensure you are logged in.");
-      }
-
-      const fetEndedDate = moment()
-        .tz("Asia/Kolkata")
-        .format("YYYY-MM-DD HH:mm:ss");
-
-      console.log(`Ending FET treatment: visitId=${visitId}, treatmentType=${treatmentType}, reason=${fetEndedReason}, endedBy=${fetEndedBy}`);
-
-      // Check if record exists
-      const existingRecord = await TriggerTimeStampsMaster.findOne({
-        where: {
-          visitId: visitId,
-          treatmentType: treatmentType
-        },
-        transaction: transaction
-      });
-
-      // If record doesn't exist, create it first
-      if (!existingRecord) {
-        console.log(`Warning: No treatment_timestamps record found for FET end: visitId=${visitId}, treatmentType=${treatmentType}. Creating record...`);
-        
-        // Get visit date to use as default startDate
-        const visitInfo = await patientVisitsAssociation.findOne({
-          where: { id: visitId },
-          attributes: ['visitDate', 'createdAt'],
-          transaction: transaction
-        });
-
-        // Use visitDate if available, otherwise use createdAt, otherwise use current date
-        const defaultStartDate = visitInfo?.visitDate 
-          ? moment(visitInfo.visitDate).tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss")
-          : visitInfo?.createdAt
-          ? moment(visitInfo.createdAt).tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss")
-          : moment().tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss");
-
-        console.log(`Creating treatment_timestamps record with startDate=${defaultStartDate}`);
-
-        // Create the record with startDate and immediately set fetEndedDate
-        await TriggerTimeStampsMaster.create(
-          {
-            visitId: visitId,
-            treatmentType: treatmentType,
-            startDate: defaultStartDate,
-            startedBy: fetEndedBy, // Use same user as fetEndedBy since we don't have original starter
-            fetEndedReason: fetEndedReason,
-            fetEndedDate: fetEndedDate,
-            fetEndedBy: fetEndedBy
-          },
-          {
-            transaction: transaction
-          }
-        ).catch(err => {
-          console.log("Error while creating treatment timestamps record:", err.message);
-          throw new createError.InternalServerError(
-            `Failed to create treatment record: ${err.message}`
-          );
-        });
-
-        console.log(`Successfully created and ended FET treatment: visitId=${visitId}, treatmentType=${treatmentType}`);
-        return "FET treatment ended successfully (record was created as it did not exist)";
-      }
-
-      // Record exists, update it
-      const updateResult = await TriggerTimeStampsMaster.update(
+      await TriggerTimeStampsMaster.update(
         {
+          visitId: visitId,
           fetEndedReason: fetEndedReason,
-          fetEndedDate: fetEndedDate,
-          fetEndedBy: fetEndedBy
+          fetEndedDate: moment()
+            .tz("Asia/Kolkata")
+            .format("YYYY-MM-DD HH:mm:ss"),
+          fetEndedBy: this._request?.userDetails?.id
         },
         {
           where: {
             visitId: visitId,
-            treatmentType: treatmentType
+            treatmentType
           },
           transaction: transaction
         }
       ).catch(err => {
-        console.log("Error while updating FET treatment timestamps:", err.message);
+        console.log("Error while adding record in timestamps master", err);
         throw new createError.InternalServerError(
           Constants.SOMETHING_ERROR_OCCURRED
         );
       });
-
-      // Check if update actually affected any rows
-      if (updateResult[0] === 0) {
-        console.error(`Critical: Record exists but update affected 0 rows for FET: visitId=${visitId}, treatmentType=${treatmentType}`);
-        throw new createError.InternalServerError(
-          "Failed to update FET treatment status. Please try again."
-        );
-      }
-
-      console.log(`Successfully ended FET treatment: visitId=${visitId}, treatmentType=${treatmentType}, rowsUpdated=${updateResult[0]}`);
-      return "FET treatment ended successfully";
     } else if (updateType === "END_ERA") {
       /*
         1. UpdateEntry in the Trigger TimeStamps
@@ -2895,14 +2639,6 @@ class AppointmentsPaymentService extends BaseService {
     } = await consultationBookReviewAppointmentSchema.validateAsync(
       this._request.body
     );
-
-    const patientData = await PatientMasterModel.findOne({
-      where: { id: patientId }
-    });
-    if (lodash.isEmpty(patientData)) {
-      throw new createError.BadRequest(Constants.PATIENT_NOT_FOUND);
-    }
-    this.assertRegistrationCompleted(patientData.dataValues || patientData);
 
     let model;
 
@@ -3187,11 +2923,6 @@ class AppointmentsPaymentService extends BaseService {
     } = await treatmentBookReviewAppointmentSchema.validateAsync(
       this._request.body
     );
-
-    const patientData = await this.getPatientByTreatmentCycleId(
-      treatmentCycleId
-    );
-    this.assertRegistrationCompleted(patientData);
 
     let model;
 
@@ -4116,215 +3847,6 @@ class AppointmentsPaymentService extends BaseService {
       });
 
     return data || [];
-  }
-
-  // New structured hysteroscopy report methods
-  async createHysteroscopyReportService() {
-    const validatedData = await createHysteroscopyReportSchema.validateAsync(
-      this._request.body
-    );
-    const createdBy = this._request?.userDetails?.id;
-
-    return await this.mysqlConnection.transaction(async t => {
-      // Check if report already exists for this visit
-      const existingReport = await VisitHysteroscopyAssociations.findOne({
-        where: { visitId: validatedData.visitId },
-        transaction: t
-      });
-
-      if (existingReport) {
-        throw new createError.BadRequest(
-          "Hysteroscopy report already exists for this visit. Use update endpoint instead."
-        );
-      }
-
-      const reportData = {
-        patientId: validatedData.patientId,
-        visitId: validatedData.visitId,
-        hospitalBranch: validatedData.branchLocation,
-        clinicalDiagnosis: validatedData.clinicalDiagnosis || "",
-        lmp: validatedData.lmpDate || null,
-        dayOfCycle: validatedData.dayOfCycle || "",
-        admissionDate: validatedData.admissionDate,
-        procedureDate: validatedData.procedureDate,
-        dischargeDate: validatedData.dischargeDate,
-        procedureType: validatedData.procedure,
-        gynecologist: validatedData.gynaecologistName,
-        assistant: validatedData.staffNurseName,
-        anesthetist: validatedData.anesthetistName,
-        otAssistant: validatedData.otAssistantName,
-        distensionMedia: validatedData.distentionMedium || "Normal Saline",
-        indications: validatedData.indications ? JSON.stringify(validatedData.indications) : null,
-        chiefComplaints: validatedData.chiefComplaints || "",
-        intraOpFindings: validatedData.intraOpFindings || "",
-        courseInHospital: validatedData.courseInHospital || "",
-        postOpInstructions: validatedData.postOpInstructions || "",
-        followUp: validatedData.followUp || "",
-        imageUrls: validatedData.imageUrls ? JSON.stringify(validatedData.imageUrls) : null,
-        createdBy: createdBy
-      };
-
-      const newReport = await VisitHysteroscopyAssociations.create(reportData, {
-        transaction: t
-      }).catch(err => {
-        console.log("Error while creating hysteroscopy report:", err);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-
-      return {
-        id: newReport.id,
-        message: "Hysteroscopy report created successfully"
-      };
-    });
-  }
-
-  async updateHysteroscopyReportService() {
-    const updatedBy = this._request?.userDetails?.id;
-    const { id } = this._request.params;
-    const body = this._request.body || {};
-
-    if (!id) {
-      throw new createError.BadRequest("Hysteroscopy report id is required");
-    }
-
-    return await this.mysqlConnection.transaction(async t => {
-      const existingReport = await VisitHysteroscopyAssociations.findByPk(
-        Number(id),
-        { transaction: t }
-      );
-
-      if (!existingReport) {
-        throw new createError.NotFound("Hysteroscopy report not found");
-      }
-
-      // Map incoming fields to DB columns (mirror create mapping)
-      const updateData = {
-        hospitalBranch: body.branchLocation,
-        clinicalDiagnosis: body.clinicalDiagnosis || "",
-        lmp: body.lmpDate || null,
-        dayOfCycle: body.dayOfCycle || "",
-        admissionDate: body.admissionDate,
-        procedureDate: body.procedureDate,
-        dischargeDate: body.dischargeDate,
-        procedureType: body.procedure,
-        gynecologist: body.gynaecologistName,
-        assistant: body.staffNurseName,
-        anesthetist: body.anesthetistName,
-        otAssistant: body.otAssistantName,
-        distensionMedia: body.distentionMedium || "Normal Saline",
-        indications: body.indications ? JSON.stringify(body.indications) : null,
-        chiefComplaints: body.chiefComplaints || "",
-        intraOpFindings: body.intraOpFindings || "",
-        courseInHospital: body.courseInHospital || "",
-        postOpInstructions: body.postOpInstructions || "",
-        followUp: body.followUp || "",
-        imageUrls: body.imageUrls ? JSON.stringify(body.imageUrls) : null,
-        updatedBy: updatedBy
-      };
-
-      await existingReport.update(updateData, { transaction: t }).catch(err => {
-        console.log("Error while updating hysteroscopy report:", err);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-
-      return {
-        id: existingReport.id,
-        message: "Hysteroscopy report updated successfully"
-      };
-    });
-  }
-
-  async getHysteroscopyReportService() {
-    const validatedData = await getHysteroscopyReportSchema.validateAsync(
-      this._request.params
-    );
-
-    let patientInternalId = validatedData.patientId;
-    if (typeof validatedData.patientId === "string") {
-      const patient = await PatientMasterModel.findOne({
-        where: { patientId: validatedData.patientId }
-      });
-      if (!patient) {
-        throw new createError.NotFound("Patient not found");
-      }
-      patientInternalId = patient.id;
-    }
-
-    const whereClause = { patientId: patientInternalId };
-    if (validatedData.visitId) {
-      whereClause.visitId = validatedData.visitId;
-    }
-
-    // Only select columns that exist in the database
-    // Exclude columns that may not exist yet: indications, chiefComplaints, intraOpFindings, 
-    // courseInHospital, postOpInstructions, followUp, imageUrls, createdBy, updatedBy
-    const reports = await VisitHysteroscopyAssociations.findAll({
-      where: whereClause,
-      order: [["createdAt", "DESC"]],
-      attributes: [
-        "id",
-        "patientId",
-        "visitId",
-        "formType",
-        "clinicalDiagnosis",
-        "lmp",
-        "dayOfCycle",
-        "admissionDate",
-        "procedureDate",
-        "dischargeDate",
-        "procedureType",
-        "hospitalBranch",
-        "gynecologist",
-        "assistant",
-        "anesthesiaType",
-        "anesthetist",
-        "otAssistant",
-        "diagnosis",
-        "distensionMedia",
-        "entry",
-        "uterus",
-        "endometrialThickness",
-        "operativeFindings",
-        "intraopComplications",
-        "postopCourse",
-        "reviewOn",
-        "dischargeMedications",
-        "consultantName",
-        "createdAt",
-        "updatedAt"
-      ]
-    }).catch(err => {
-      console.log("Error while getting hysteroscopy reports:", err);
-      throw new createError.InternalServerError(
-        Constants.SOMETHING_ERROR_OCCURRED
-      );
-    });
-
-    // Parse JSON fields
-    const formattedReports = reports.map(report => {
-      const reportData = report.toJSON();
-      if (reportData.indications) {
-        try {
-          reportData.indications = JSON.parse(reportData.indications);
-        } catch (e) {
-          reportData.indications = [];
-        }
-      }
-      if (reportData.imageUrls) {
-        try {
-          reportData.imageUrls = JSON.parse(reportData.imageUrls);
-        } catch (e) {
-          reportData.imageUrls = [];
-        }
-      }
-      return reportData;
-    });
-
-    return formattedReports;
   }
 }
 

@@ -12,54 +12,25 @@ UNION ALL
 select em.id, em.name, em.amount from embryology_master em where :billTypeId = 4
 `;
 
-// Optimized queries for each bill type to avoid evaluating all UNION parts
-const getBillTypeValuesByBranchQueryLab = `
-SELECT ltm.id, ltm.name, ltmba.amount FROM lab_test_master ltm  
-INNER JOIN lab_test_master_branch_association ltmba ON ltmba.labTestId = ltm.id
-WHERE ltmba.branchId = :branchId and ltmba.isActive = 1
-`;
-
-const getBillTypeValuesByBranchQueryScan = `
-SELECT sm.id, sm.name, smba.amount FROM scan_master sm  
-INNER JOIN scan_master_branch_association smba ON smba.scanId = sm.id
-WHERE smba.branchId = :branchId and smba.isActive = 1
-`;
-
-const getBillTypeValuesByBranchQueryItem = `
-SELECT im.id, im.itemName as name, 0 as amount 
-FROM stockmanagement.item_master im 
-INNER JOIN stockmanagement.grn_items_associations gia ON gia.itemId = im.id AND gia.isReturned = 0 AND gia.totalQuantity > 0
-INNER JOIN stockmanagement.grn_master gm ON gm.id = gia.grnId AND gm.branchId = :branchId
-WHERE im.isActive = 1 AND CAST(NOW() AS DATE) < gia.expiryDate
-GROUP BY im.id, im.itemName
-`;
-
-const getBillTypeValuesByBranchQueryEmbryology = `
-SELECT em.id, em.name, emba.amount FROM embryology_master em 
-INNER JOIN embryology_master_branch_association emba ON emba.embryologyId = em.id
-WHERE emba.branchId = :branchId and emba.isActive = 1
-`;
-
-// Fallback to original query for backward compatibility
 const getBillTypeValuesByBranchQuery = `
 SELECT ltm.id, ltm.name, ltmba.amount FROM lab_test_master ltm  
 INNER JOIN lab_test_master_branch_association ltmba ON ltmba.labTestId = ltm.id
 WHERE :billTypeId = 1 and ltmba.branchId = :branchId and ltmba.isActive = 1
 UNION ALL
 SELECT sm.id, sm.name, smba.amount FROM scan_master sm  
-INNER JOIN scan_master_branch_association smba ON smba.scanId = sm.id
+INNER JOIN scan_master_branch_association smba ON smba.scanId  = sm.id
 WHERE :billTypeId = 2 and smba.branchId = :branchId and smba.isActive = 1
 UNION ALL
-SELECT im.id, im.itemName as name, 0 as amount 
-FROM stockmanagement.item_master im 
-INNER JOIN stockmanagement.grn_items_associations gia ON gia.itemId = im.id AND gia.isReturned = 0 AND gia.totalQuantity > 0
-INNER JOIN stockmanagement.grn_master gm ON gm.id = gia.grnId AND gm.branchId = :branchId
-WHERE im.isActive = 1 AND :billTypeId = 3 AND CAST(NOW() AS DATE) < gia.expiryDate
-GROUP BY im.id, im.itemName
+SELECT im.id, im.itemName as name, 0 as amount FROM stockmanagement.item_master im WHERE im.isActive  = 1 AND :billTypeId = 3 AND EXISTS (
+	select 
+		* 
+	from stockmanagement.grn_items_associations gia  INNER JOIN stockmanagement.grn_master gm on gm.id = gia.grnId
+	where gia.itemId  = im.id and gia.isReturned  = 0 and gm.branchId  IN (:branchId) and gia.totalQuantity  > 0  and CAST(NOW() AS DATE) < gia.expiryDate
+)
 UNION ALL
-SELECT em.id, em.name, emba.amount FROM embryology_master em 
-INNER JOIN embryology_master_branch_association emba ON emba.embryologyId = em.id
-WHERE :billTypeId = 4 and emba.branchId = :branchId and emba.isActive = 1
+select em.id, em.name, emba.amount from embryology_master em 
+INNER JOIN embryology_master_branch_association emba ON emba.embryologyId  = em.id
+where :billTypeId = 4 and emba.branchId = :branchId and emba.isActive = 1
 `;
 
 const getDropdownInfo = `
@@ -138,10 +109,6 @@ module.exports = {
   getCitiesQuery,
   getBillTypeValuesQuery,
   getBillTypeValuesByBranchQuery,
-  getBillTypeValuesByBranchQueryLab,
-  getBillTypeValuesByBranchQueryScan,
-  getBillTypeValuesByBranchQueryItem,
-  getBillTypeValuesByBranchQueryEmbryology,
   getDropdownInfo,
   getAllCitiesQuery
 };

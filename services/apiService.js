@@ -10,15 +10,10 @@ const {
   getDropdownInfo,
   getBillTypeValuesQuery,
   getAllCitiesQuery,
-  getBillTypeValuesByBranchQuery,
-  getBillTypeValuesByBranchQueryLab,
-  getBillTypeValuesByBranchQueryScan,
-  getBillTypeValuesByBranchQueryItem,
-  getBillTypeValuesByBranchQueryEmbryology
+  getBillTypeValuesByBranchQuery
 } = require("../queries/api_queries");
 const fsPromises = require("fs").promises;
 const TreatmentTypeMasterModel = require("../models/Master/treatmentTypesMaster");
-const RedisConnection = require("../connections/redis_connection");
 
 class ApiService {
   constructor(request, response, next) {
@@ -97,29 +92,11 @@ class ApiService {
   }
 
   async getBillTypeValuesService() {
-    const billTypeParamId = parseInt(this._request.params.billTypeId);
+    const billTypeParamId = this._request.params.billTypeId;
     const { branchId } = this._request.query;
     let query, getBillTypeValuesData;
-    
     if (branchId) {
-      // Use optimized queries for each bill type to avoid evaluating all UNION parts
-      switch (billTypeParamId) {
-        case 1:
-          query = getBillTypeValuesByBranchQueryLab;
-          break;
-        case 2:
-          query = getBillTypeValuesByBranchQueryScan;
-          break;
-        case 3:
-          query = getBillTypeValuesByBranchQueryItem;
-          break;
-        case 4:
-          query = getBillTypeValuesByBranchQueryEmbryology;
-          break;
-        default:
-          query = getBillTypeValuesByBranchQuery;
-      }
-      
+      query = getBillTypeValuesByBranchQuery;
       getBillTypeValuesData = await this.mysqlConnection
         .query(query, {
           type: Sequelize.QueryTypes.SELECT,
@@ -199,59 +176,20 @@ class ApiService {
   }
 
   async getTreatmentTypeService() {
-    const cacheKey = "treatment_types_cache";
-    try {
-      // Try to get from cache first
-      const cachedData = await RedisConnection._instance.get(cacheKey);
-      if (cachedData) {
-        return JSON.parse(cachedData);
-      }
-
-      // If not in cache, fetch from database
-      const treatmentTypes = await TreatmentTypeMasterModel.findAll({
-        attributes: [
-          "id",
-          "name",
-          "isPackageExists",
-          "isConsentsExists",
-          "follicularSheetExists"
-        ]
-      }).catch(err => {
-        console.log("error while fetching treatmenttype list", err);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-
-      // Cache for 1 hour (3600 seconds) - master data doesn't change frequently
-      await RedisConnection._instance.setex(
-        cacheKey,
-        3600,
-        JSON.stringify(treatmentTypes)
+    return await TreatmentTypeMasterModel.findAll({
+      attributes: [
+        "id",
+        "name",
+        "isPackageExists",
+        "isConsentsExists",
+        "follicularSheetExists"
+      ]
+    }).catch(err => {
+      console.log("error while fetching treatmenttype list", err);
+      throw new createError.InternalServerError(
+        Constants.SOMETHING_ERROR_OCCURRED
       );
-
-      return treatmentTypes;
-    } catch (err) {
-      // If Redis fails, fallback to database query
-      if (err.code !== "ECONNREFUSED" && !err.message.includes("Redis")) {
-        throw err;
-      }
-      console.log("Redis unavailable, fetching from database directly");
-      return await TreatmentTypeMasterModel.findAll({
-        attributes: [
-          "id",
-          "name",
-          "isPackageExists",
-          "isConsentsExists",
-          "follicularSheetExists"
-        ]
-      }).catch(err => {
-        console.log("error while fetching treatmenttype list", err);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-    }
+    });
   }
 
   async getAllCitiesService() {

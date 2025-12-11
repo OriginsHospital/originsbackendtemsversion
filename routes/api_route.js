@@ -9,7 +9,6 @@ class ApiRoute {
   }
 
   async intializeRoutes() {
-    this._route.get("/health", this.healthRoute);
     this._route.get("/dropdownOptions", this.dropdownOptionsRoute);
     this._route.get("/undoIcsi/:patientId", this.undoIcsiRoute);
     this._route.get("/getCities/:stateId", this.getCitiesRoute);
@@ -20,14 +19,6 @@ class ApiRoute {
     this._route.get("/getTreatmentTypes", this.getTreatmentTypesRoute);
     this._route.get("/getAllCities", this.getAllCitiesRoute);
   }
-
-  healthRoute = asyncHandler(async (req, res, next) => {
-    res.status(200).json({
-      status: "ok",
-      message: "Origins HMS Backend is running",
-      timestamp: new Date().toISOString()
-    });
-  });
 
   dropdownOptionsRoute = asyncHandler(async (req, res, next) => {
     const controllerObj = new ApiController(req, res, next);

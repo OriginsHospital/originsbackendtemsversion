@@ -14,21 +14,13 @@ const PatientOtherPaymentsAssociation = MySqlConnection._instance.define(
       type: Sequelize.DataTypes.INTEGER,
       allowNull: false
     },
-    billingCategory: {
-      type: Sequelize.DataTypes.STRING(100),
-      allowNull: true // Temporarily allow null for backward compatibility
-    },
     appointmentReason: {
       type: Sequelize.DataTypes.STRING(100),
-      allowNull: true // Keep for backward compatibility during migration
+      allowNull: false
     },
     amount: {
       type: Sequelize.DataTypes.STRING(10),
       allowNull: false
-    },
-    notes: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
     },
     createdBy: {
       type: Sequelize.INTEGER,

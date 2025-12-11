@@ -103,8 +103,6 @@ CREATE TABLE patient_master (
     patientId VARCHAR(100),
     branchId int not null,
     aadhaarNo VARCHAR(12) UNIQUE,
-    isZeroRegistration TINYINT(1) DEFAULT 0,
-    zeroRegistrationCode VARCHAR(30),
     mobileNo VARCHAR(10),
     firstName VARCHAR(50),
     lastName VARCHAR(50),
@@ -462,7 +460,7 @@ CREATE TABLE tax_category_master (
     createdBy INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (createdBy) REFERENCES users(id)
+    FOREIGN KEY (createdBy) REFERENCES defaultdb.users(id)
 );
 
 CREATE TABLE inventory_type_master (
@@ -471,7 +469,7 @@ CREATE TABLE inventory_type_master (
     createdBy INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (createdBy) REFERENCES users(id)
+    FOREIGN KEY (createdBy) REFERENCES defaultdb.users(id)
 );
 
 CREATE TABLE manufacturer_master (
@@ -495,7 +493,7 @@ CREATE TABLE manufacturer_master (
     createdBy INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (createdBy) REFERENCES users(id)
+    FOREIGN KEY (createdBy) REFERENCES defaultdb.users(id)
 );
 
 CREATE TABLE supplier_master (
@@ -515,7 +513,7 @@ CREATE TABLE supplier_master (
     createdBy INT NOT NULL,
     createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (createdBy) REFERENCES users(id)
+    FOREIGN KEY (createdBy) REFERENCES defaultdb.users(id)
 );
 
 CREATE TABLE item_master (
@@ -533,5 +531,5 @@ CREATE TABLE item_master (
     FOREIGN KEY (inventoryType) REFERENCES inventory_type_master(id),
     FOREIGN KEY (manufacturerName) REFERENCES manufacturer_master(id),
     FOREIGN KEY (taxCategory) REFERENCES tax_category_master(id),
-    FOREIGN KEY (createdBy) REFERENCES users(id)
+    FOREIGN KEY (createdBy) REFERENCES defaultdb.users(id)
 );

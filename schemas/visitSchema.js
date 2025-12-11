@@ -301,7 +301,7 @@ const closeVisitSchema = Joi.object({
 });
 
 const closeVisitByConsultationSchema = Joi.object({
-  patientId: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+  patientId: Joi.number().required(),
   type: Joi.string().required(),
   appointmentId: Joi.number().required(),
   consultationId: Joi.number().required(),
@@ -312,88 +312,32 @@ const closeVisitByConsultationSchema = Joi.object({
 });
 
 const saveHysteroscopySchema = Joi.object({
-  patientId: Joi.alternatives()
-    .try(
-      Joi.number().integer(),
-      Joi.string()
-    )
+  patientId: Joi.number()
+    .integer()
     .required(),
   visitId: Joi.number()
     .integer()
     .required(),
-  // Database field names (optional, can use incoming field names instead)
-  procedureType: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  gynecologist: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  procedureDate: Joi.alternatives()
-    .try(
-      Joi.date(),
-      Joi.string(),
-      Joi.allow(null, "")
-    ),
-  // Incoming request field names
-  branchLocation: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  gynaecologistName: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  staffNurseName: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  anesthetistName: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  otAssistantName: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  procedure: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  distentionMedium: Joi.string()
-    .max(255)
-    .allow(null, ""),
-  // Arrays that need to be converted to JSON
-  indications: Joi.array().items(Joi.string()).allow(null),
-  imageUrls: Joi.array().items(Joi.string()).allow(null),
-  // Other fields
   formType: Joi.string()
     .max(255)
     .allow(null, ""),
   clinicalDiagnosis: Joi.string()
     .max(255)
     .allow(null, ""),
-  lmp: Joi.alternatives()
-    .try(
-      Joi.date(),
-      Joi.string(),
-      Joi.allow(null, "")
-    ),
-  lmpDate: Joi.alternatives()
-    .try(
-      Joi.date(),
-      Joi.string(),
-      Joi.allow(null, "")
-    ),
+  lmp: Joi.date().allow(null),
   dayOfCycle: Joi.string()
     .max(255)
     .allow(null, ""),
-  admissionDate: Joi.alternatives()
-    .try(
-      Joi.date(),
-      Joi.string(),
-      Joi.allow(null, "")
-    ),
-  dischargeDate: Joi.alternatives()
-    .try(
-      Joi.date(),
-      Joi.string(),
-      Joi.allow(null, "")
-    ),
+  admissionDate: Joi.date().allow(null),
+  procedureDate: Joi.date().allow(null),
+  dischargeDate: Joi.date().allow(null),
+  procedureType: Joi.string()
+    .max(255)
+    .allow(null, ""),
   hospitalBranch: Joi.string()
+    .max(255)
+    .allow(null, ""),
+  gynecologist: Joi.string()
     .max(255)
     .allow(null, ""),
   assistant: Joi.string()
@@ -438,18 +382,8 @@ const saveHysteroscopySchema = Joi.object({
     .allow(null, ""),
   consultantName: Joi.string()
     .max(255)
-    .allow(null, ""),
-  chiefComplaints: Joi.string()
-    .allow(null, ""),
-  intraOpFindings: Joi.string()
-    .allow(null, ""),
-  courseInHospital: Joi.string()
-    .allow(null, ""),
-  postOpInstructions: Joi.string()
-    .allow(null, ""),
-  followUp: Joi.string()
     .allow(null, "")
-}).unknown(true); // Allow unknown fields to pass through
+});
 
 module.exports = {
   createVisitSchema,

@@ -21,7 +21,7 @@ const PatientMasterModel = MySqlConnection._instance.define(
     aadhaarNo: {
       type: Sequelize.DataTypes.STRING(12),
       unique: true,
-      allowNull: true
+      allowNull: false
     },
     mobileNo: {
       type: Sequelize.DataTypes.STRING(10),
@@ -105,15 +105,6 @@ const PatientMasterModel = MySqlConnection._instance.define(
     },
     uploadedDocuments: {
       type: Sequelize.DataTypes.JSON,
-      allowNull: true
-    },
-    isZeroRegistration: {
-      type: Sequelize.DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false
-    },
-    zeroRegistrationCode: {
-      type: Sequelize.DataTypes.STRING(30),
       allowNull: true
     },
     createdBy: {

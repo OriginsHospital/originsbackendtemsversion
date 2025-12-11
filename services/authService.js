@@ -255,24 +255,6 @@ class AuthService {
         );
       });
 
-      // Create notification for admin users about new registration
-      try {
-        const NotificationsService = require("./notificationsService");
-        const notificationService = new NotificationsService(
-          this._request,
-          this._response,
-          this._next
-        );
-        await notificationService.createNewUserRegistrationNotification(
-          data.id,
-          this._request.body.fullName,
-          email
-        );
-      } catch (notificationError) {
-        // Log error but don't fail registration if notification fails
-        console.log("Error creating notification for new user registration:", notificationError);
-      }
-
       return data;
     });
   }

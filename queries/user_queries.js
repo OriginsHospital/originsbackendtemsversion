@@ -191,7 +191,7 @@ select u.id, u.fullName as name from users u where u.fullName LIKE :searchQuery 
 `;
 
 const getValidUsersQuery = `
-select u.id , u.fullName, u.email
+select u.id , u.fullName 
 FROM users u
 WHERE u.isAdminVerified = 1 and u.isBlocked = 0 
 `;

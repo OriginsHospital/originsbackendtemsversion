@@ -199,28 +199,6 @@ class AppointmentPaymentRoute {
       this.updateHysteroscopySheetByVisitId
     );
 
-    // New structured hysteroscopy report endpoints
-    this._route.post(
-      "/api/hysteroscopy/create",
-      checkActiveSession,
-      tokenVerified,
-      this.createHysteroscopyReport
-    );
-
-    this._route.put(
-      "/api/hysteroscopy/update/:id",
-      checkActiveSession,
-      tokenVerified,
-      this.updateHysteroscopyReport
-    );
-
-    this._route.get(
-      "/api/hysteroscopy/:patientId",
-      checkActiveSession,
-      tokenVerified,
-      this.getHysteroscopyReport
-    );
-
     // prescription print
     this._route.post(
       "/printPrescription",
@@ -388,21 +366,6 @@ class AppointmentPaymentRoute {
   updateHysteroscopySheetByVisitId = asyncHandler(async (req, res, next) => {
     const controllerObj = new AppointmentsPaymentController(req, res, next);
     await controllerObj.updateHysteroscopySheetByVisitIdHandler();
-  });
-
-  createHysteroscopyReport = asyncHandler(async (req, res, next) => {
-    const controllerObj = new AppointmentsPaymentController(req, res, next);
-    await controllerObj.createHysteroscopyReportHandler();
-  });
-
-  updateHysteroscopyReport = asyncHandler(async (req, res, next) => {
-    const controllerObj = new AppointmentsPaymentController(req, res, next);
-    await controllerObj.updateHysteroscopyReportHandler();
-  });
-
-  getHysteroscopyReport = asyncHandler(async (req, res, next) => {
-    const controllerObj = new AppointmentsPaymentController(req, res, next);
-    await controllerObj.getHysteroscopyReportHandler();
   });
 
   printPrescriptionRoute = asyncHandler(async (req, res, next) => {

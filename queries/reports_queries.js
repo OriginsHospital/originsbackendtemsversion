@@ -514,7 +514,7 @@ const salesDataQuery = `
             'totalOrderAmount', opom.totalOrderAmount ,
             'discountAmount', opom.discountAmount,
             'amount', opom.paidOrderAmount ,
-            'productType', COALESCE(popa.billingCategory, popa.appointmentReason) 
+            'productType', popa.appointmentReason 
         ) as orderDetails
         FROM 
             other_payment_orders_master opom 

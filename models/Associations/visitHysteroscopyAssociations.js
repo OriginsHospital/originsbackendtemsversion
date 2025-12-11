@@ -117,49 +117,10 @@ const VisitHysteroscopyAssociations = MySqlConnection._instance.define(
     consultantName: {
       type: Sequelize.DataTypes.STRING(255),
       allowNull: true
-    },
-    indications: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true,
-      comment: "JSON array of selected indications"
-    },
-    chiefComplaints: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
-    },
-    intraOpFindings: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
-    },
-    courseInHospital: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
-    },
-    postOpInstructions: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
-    },
-    followUp: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true
-    },
-    imageUrls: {
-      type: Sequelize.DataTypes.TEXT,
-      allowNull: true,
-      comment: "JSON array of uploaded image URLs"
-    },
-    createdBy: {
-      type: Sequelize.DataTypes.INTEGER,
-      allowNull: true
-    },
-    updatedBy: {
-      type: Sequelize.DataTypes.INTEGER,
-      allowNull: true
     }
   },
   {
-    tableName: "visit_hysteroscopy_associations",
-    timestamps: true
+    tableName: "visit_hysteroscopy_associations"
   }
 );
 

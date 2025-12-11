@@ -1,6 +1,5 @@
 const Constants = require("../constants/constants");
 const AppointmentsPaymentService = require("../services/appointmentPaymentsService");
-const VisitHysteroscopyAssociations = require("../models/Associations/visitHysteroscopyAssociations");
 
 class AppointmentsPaymentController {
   constructor(request, response, next) {
@@ -78,14 +77,6 @@ class AppointmentsPaymentController {
   }
 
   async getTreatmentSheetsByIdHandler() {
-    // Disable caching to prevent 304 responses
-    this._response.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Last-Modified': new Date().toUTCString()
-    });
-    
     const data = await this._service.getTreatmentSheetsByIdService();
     this._response.status(200).send({
       status: 200,
@@ -95,14 +86,6 @@ class AppointmentsPaymentController {
   }
 
   async getTreatmentStatusHandler() {
-    // Disable caching to prevent 304 responses
-    this._response.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Last-Modified': new Date().toUTCString()
-    });
-    
     const data = await this._service.getTreatmentStatusService();
     this._response.status(200).send({
       status: 200,
@@ -157,12 +140,10 @@ class AppointmentsPaymentController {
   }
 
   async updateTreatmentStatusHandler() {
-    console.log("Update Treatment Status Request:", JSON.stringify(this._request.body, null, 2));
     const data = await this._service.updateTreatmentStatusService();
-    console.log("Update Treatment Status Response:", data);
     this._response.status(200).send({
       status: 200,
-      message: data || Constants.SUCCESS,
+      message: Constants.SUCCESS,
       data: data
     });
   }
@@ -249,92 +230,7 @@ class AppointmentsPaymentController {
   }
 
   async getHysteroscopySheetByVisitIdHandler() {
-    // Disable caching to prevent 304 responses
-    this._response.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Last-Modified': new Date().toUTCString()
-    });
-    
     const data = await this._service.getHysteroscopySheetByVisitIdService();
-    this._response.status(200).send({
-      status: 200,
-      message: Constants.SUCCESS,
-      data: data
-    });
-  }
-
-  async createHysteroscopyReportHandler() {
-    try {
-      const req = this._request;
-      const res = this._response;
-
-      // Convert patientId "TST0408" → 408, "HNK0725" → 725
-      let numericPatientId = null;
-      if (req.body.patientId) {
-        numericPatientId = Number(String(req.body.patientId).replace(/\D/g, ""));
-      }
-
-      const payload = {
-        patientId: numericPatientId,
-        visitId: req.body.visitId,
-        formType: "Hysteroscopy",
-        clinicalDiagnosis: req.body.clinicalDiagnosis,
-        lmp: req.body.lmpDate,
-        dayOfCycle: req.body.dayOfCycle,
-        admissionDate: req.body.admissionDate,
-        procedureDate: req.body.procedureDate,
-        dischargeDate: req.body.dischargeDate,
-
-        procedureType: req.body.procedure,
-        hospitalBranch: req.body.branchLocation,
-        gynecologist: req.body.gynaecologistName,
-        assistant: req.body.staffNurseName,
-        anesthetist: req.body.anesthetistName,
-        otAssistant: req.body.otAssistantName,
-        distensionMedia: req.body.distentionMedium,
-
-        indications: JSON.stringify(req.body.indications || []),
-        chiefComplaints: req.body.chiefComplaints,
-        intraOpFindings: req.body.intraOpFindings,
-        courseInHospital: req.body.courseInHospital,
-        postOpInstructions: req.body.postOpInstructions,
-        followUp: req.body.followUp,
-
-        imageUrls: JSON.stringify(req.body.imageUrls || []),
-        createdBy: req.userDetails?.id || null,
-        updatedBy: req.userDetails?.id || null
-      };
-
-      const result = await VisitHysteroscopyAssociations.create(payload);
-
-      res.status(200).send({
-        status: 200,
-        message: "Hysteroscopy sheet created",
-        data: result
-      });
-    } catch (err) {
-      console.error("Error creating hysteroscopy report:", err);
-      this._response.status(400).send({
-        status: 400,
-        error: err.message,
-        data: []
-      });
-    }
-  }
-
-  async updateHysteroscopyReportHandler() {
-    const data = await this._service.updateHysteroscopyReportService();
-    this._response.status(200).send({
-      status: 200,
-      message: data.message || Constants.SUCCESS,
-      data: data
-    });
-  }
-
-  async getHysteroscopyReportHandler() {
-    const data = await this._service.getHysteroscopyReportService();
     this._response.status(200).send({
       status: 200,
       message: Constants.SUCCESS,

@@ -160,7 +160,7 @@ class visitsController {
     );
     this._response.status(200).send({
       status: 200,
-      message: data.message || Constants.SUCCESS,
+      message: Constants.SUCCESS,
       data: data
     });
   }

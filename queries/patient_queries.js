@@ -12,17 +12,7 @@ dateOfBirth,
 JSON_OBJECT('id', cityId, 'name', cm.name) AS city,
 JSON_OBJECT('id', referralId, 'referralSource', rtm.name) AS referralSource,
 referralName,
-pm.branchId,
-(select pva.id from patient_visits_association pva where pva.patientId = pm.id and pva.isActive = 1 LIMIT 1) as activeVisitId,
-(
-    CASE 
-        WHEN EXISTS (
-            select * from visit_treatment_cycles_associations vtca WHERE vtca.visitId IN 
-                (select id from patient_visits_association pva where pva.patientId = pm.id and pva.isActive = 1)
-        ) THEN 1
-        ELSE 0
-    END
-) as hasTreatment
+(select pva.id from patient_visits_association pva where pva.patientId = pm.id and pva.isActive = 1 LIMIT 1) as activeVisitId 
 from patient_master pm 
 INNER JOIN patient_type_master ptm ON ptm.id = patientTypeId 
 INNER JOIN city_master cm ON cm.id = cityId
@@ -158,11 +148,7 @@ from
 LEFT JOIN patient_guardian_associations pga on
 	pga.patientId = pm.id
 where
-	pm.aadhaarNo = :searchKey
-	or pga.aadhaarNo = :searchKey
-	or pm.mobileNo = :searchKey
-	or pm.zeroRegistrationCode = :searchKey
-	or pm.patientId = :searchKey
+	pm.aadhaarNo = :aadhaarNo or pga.aadhaarNo = :aadhaarNo
 `;
 module.exports = {
   getDateFilteredPatientsQuery,

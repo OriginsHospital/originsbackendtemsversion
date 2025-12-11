@@ -244,114 +244,38 @@ class VisitsService {
   }
 
   async closeVisitByConsultationService() {
-    // Log incoming request for debugging
-    console.log("Close Visit Body:", JSON.stringify(this._request.body, null, 2));
-    console.log("Route Params:", this._request.params);
-    
+    const paramVisitId = Number(this._request.params.visitId);
     const validatedVisitData = await closeVisitByConsultationSchema.validateAsync(
       this._request.body
-    ).catch(err => {
-      console.log("Validation Error:", err.message);
-      console.log("Validation Details:", err.details);
-      throw new createError.BadRequest(
-        `Validation failed: ${err.details.map(d => d.message).join(", ")}`
-      );
-    });
-
+    );
     if (validatedVisitData?.type.toLowerCase() == "treatment") {
       throw new createError.BadRequest("Cant close visit for Treatment");
     }
-
-    // Convert patientId string to internal ID if needed
-    let patientInternalId = validatedVisitData.patientId;
-    if (typeof validatedVisitData.patientId === "string") {
-      const patient = await PatientMasterModel.findOne({
-        where: { patientId: validatedVisitData.patientId }
-      }).catch(err => {
-        console.log("Error while finding patient by patientId:", err.message);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-      
-      if (!patient) {
-        throw new createError.BadRequest(
-          `Patient with patientId "${validatedVisitData.patientId}" not found`
-        );
-      }
-      patientInternalId = patient.id;
-      console.log(`Converted patientId "${validatedVisitData.patientId}" to internal ID: ${patientInternalId}`);
-    }
-
-    // Get visitId from consultationId (from body)
-    const consultation = await visitConsultationsAssociations
-      .findOne({ where: { id: validatedVisitData.consultationId } })
-      .catch(err => {
-        console.log("Error while getting consultation:", err.message);
-        throw new createError.InternalServerError(
-          Constants.SOMETHING_ERROR_OCCURRED
-        );
-      });
-
-    if (!consultation) {
-      throw new createError.BadRequest(
-        `Consultation with ID ${validatedVisitData.consultationId} not found`
-      );
-    }
-
-    const paramVisitId = consultation.visitId;
-    console.log(`Found visitId ${paramVisitId} for consultationId ${validatedVisitData.consultationId}`);
-
-    // Verify appointment belongs to consultation
-    const ConsultationAppointmentAssociations = require("../models/Associations/consultationAppointmentsAssociations");
-    const appointment = await ConsultationAppointmentAssociations.findOne({
-      where: { 
-        id: validatedVisitData.appointmentId,
-        consultationId: validatedVisitData.consultationId
-      }
-    }).catch(err => {
-      console.log("Error while verifying appointment:", err.message);
-      throw new createError.InternalServerError(
-        Constants.SOMETHING_ERROR_OCCURRED
-      );
-    });
-
-    if (!appointment) {
-      throw new createError.BadRequest(
-        `Appointment ${validatedVisitData.appointmentId} does not belong to consultation ${validatedVisitData.consultationId}`
-      );
-    }
-
-    // Verify visit belongs to patient
     const visitExist = await patientVisitsAssociation
-      .findOne({ where: { id: paramVisitId, patientId: patientInternalId } })
+      .findOne({ where: { id: paramVisitId } })
       .catch(err => {
         console.log("Error while getting visit exist check", err.message);
         throw new createError.InternalServerError(
           Constants.SOMETHING_ERROR_OCCURRED
         );
       });
-    
     if (!visitExist) {
-      throw new createError.BadRequest(
-        `Visit ${paramVisitId} does not exist or does not belong to patient ${validatedVisitData.patientId}`
-      );
+      throw new createError.BadRequest(Constants.VISIT_DOES_NOT_EXIST);
     }
-    
     if (!visitExist?.isActive) {
       throw new createError.BadRequest(Constants.NO_ACTIVE_VISIT_EXIST);
     }
 
     await this.mysqlConnection.transaction(async t => {
-      // check if treatment exists for visitId - parallelize this check
-      const [existingVisitTreatments] = await Promise.all([
-        visitTreatmentsAssociations.findAll({
+      // check if treatment exists for visitId
+      const existingVisitTreatments = await visitTreatmentsAssociations
+        .findAll({
           where: { visitId: paramVisitId }
-        }).catch(err => {
+        })
+        .catch(err => {
           console.log("Error while getting visit treatments:", err.message);
           throw new createError.InternalServerError(err.message);
-        })
-      ]);
+        });
 
       if (!lodash.isEmpty(existingVisitTreatments)) {
         throw new createError.BadRequest(
@@ -361,10 +285,6 @@ class VisitsService {
 
       // update closing visit
       const closedBy = this._request.userDetails?.id;
-      if (!closedBy) {
-        throw new createError.BadRequest("User details not found. Please ensure you are logged in.");
-      }
-
       await this.mysqlConnection
         .query(UpdateActiveQuery, {
           type: Sequelize.QueryTypes.UPDATE,
@@ -383,14 +303,7 @@ class VisitsService {
           );
         });
     });
-    
-    console.log(`Visit ${paramVisitId} closed successfully by user ${this._request.userDetails?.id}`);
-    return {
-      message: Constants.VISIT_CLOSED_SUCCESSFULLY,
-      visitId: paramVisitId,
-      consultationId: validatedVisitData.consultationId,
-      appointmentId: validatedVisitData.appointmentId
-    };
+    return Constants.VISIT_CLOSED_SUCCESSFULLY;
   }
 
   async createConsultationOrTreatmentService() {
@@ -972,73 +885,28 @@ class VisitsService {
   }
 
   async saveHysteroscopyService() {
-    const req = this._request;
-    const body = req.body || {};
-
-    // Map incoming fields to DB columns (as requested)
-    const payload = {
-      patientId: Number(body.patientId), // e.g. "408" → 408
-      visitId: body.visitId,
-      clinicalDiagnosis: body.clinicalDiagnosis,
-      lmp: body.lmpDate,
-      dayOfCycle: body.dayOfCycle,
-      admissionDate: body.admissionDate,
-      procedureDate: body.procedureDate,
-      dischargeDate: body.dischargeDate,
-
-      procedureType: body.procedure,
-      hospitalBranch: body.branchLocation,
-      gynecologist: body.gynaecologistName,
-      assistant: body.staffNurseName,
-      anesthetist: body.anesthetistName,
-      otAssistant: body.otAssistantName,
-      distensionMedia: body.distentionMedium,
-
-      indications: JSON.stringify(body.indications || []),
-      chiefComplaints: body.chiefComplaints,
-      intraOpFindings: body.intraOpFindings,
-      courseInHospital: body.courseInHospital,
-      postOpInstructions: body.postOpInstructions,
-      followUp: body.followUp,
-      imageUrls: JSON.stringify(body.imageUrls || []),
-
-      createdBy: req.userDetails?.id || null,
-      updatedBy: req.userDetails?.id || null
-    };
-
-    // Basic required-field validation
-    if (!payload.patientId) {
-      throw new createError.BadRequest("patientId is required");
-    }
-    if (!payload.visitId) {
-      throw new createError.BadRequest("visitId is required");
-    }
-    if (!payload.procedureType) {
-      throw new createError.BadRequest("procedureType is required");
-    }
-    if (!payload.gynecologist) {
-      throw new createError.BadRequest("gynecologist is required");
-    }
-    if (!payload.procedureDate) {
-      throw new createError.BadRequest("procedureDate is required");
-    }
+    const validatedData = await saveHysteroscopySchema.validateAsync(
+      this._request.body
+    );
 
     return await this.mysqlConnection.transaction(async t => {
       const existingHysteroscopy = await VisitHysteroscopyAssociations.findOne({
         where: {
-          visitId: payload.visitId,
-          patientId: payload.patientId
+          visitId: validatedData.visitId,
+          patientId: validatedData.patientId
         },
         transaction: t
       });
 
       if (existingHysteroscopy) {
-        await existingHysteroscopy.update(payload, { transaction: t });
+        await existingHysteroscopy.update(validatedData, { transaction: t });
         return existingHysteroscopy;
       }
 
       const newHysteroscopy = await VisitHysteroscopyAssociations.create(
-        payload,
+        {
+          ...validatedData
+        },
         { transaction: t }
       ).catch(error => {
         console.error("Error in saveHysteroscopy Service:", error);

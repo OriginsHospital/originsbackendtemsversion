@@ -317,25 +317,22 @@ class DoctorsService {
         ? consultationAppointmentNotesAssociations
         : treatmentAppointmentNotesAssociations;
     try {
-      // Parallelize all queries for better performance
-      const [lineBillsData, notesData, spouseNotesData] = await Promise.all([
-        this.mysqlConnection.query(
-          getLineBillsQuery,
-          {
-            type: Sequelize.QueryTypes.SELECT,
-            replacements: {
-              appointmentId: appointmentId
-            }
+      const lineBillsData = await this.mysqlConnection.query(
+        getLineBillsQuery,
+        {
+          type: Sequelize.QueryTypes.SELECT,
+          replacements: {
+            appointmentId: appointmentId
           }
-        ),
-        NotesModel.findOne({
-          where: { appointmentId, isSpouse: 0 }
-        }),
-        NotesModel.findOne({
-          where: { appointmentId, isSpouse: 1 }
-        })
-      ]);
+        }
+      );
 
+      const notesData = await NotesModel.findOne({
+        where: { appointmentId, isSpouse: 0 }
+      });
+      const spouseNotesData = await NotesModel.findOne({
+        where: { appointmentId, isSpouse: 1 }
+      });
       return {
         notesData: notesData ? notesData : {},
         spouseNotesData: spouseNotesData ? spouseNotesData : {},

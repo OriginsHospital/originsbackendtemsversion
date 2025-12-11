@@ -37,7 +37,6 @@ module.exports = {
   PROVIDE_TOKEN: "Please provide token to authorize",
   UNAUTHORIZED_ACCESS_TOKEN: "Token is Invalid / Expired",
   DATA_NOT_FOUND: "Data Not Found",
-  PATIENT_DETAILS_INVALID: "Patient details are invalid",
   DATA_UPDATED_SUCCESS: "Data Updated Successfully",
   PROVIDE_USERID: "Provide Appropriate UserId",
   USER_BLOCKED_BY_ADMIN:
@@ -46,10 +45,6 @@ module.exports = {
   ID_NOT_PROVIDED: "Please Provide Valid Id",
   CREATE_PATIENT_CONFLICT:
     "Patient Aadhaar number or mobile number already exists",
-  AADHAAR_DOC_REQUIRED_FOR_REGISTRATION:
-    "Aadhaar number and Aadhaar card photocopy are required for full registration. Use zero registration if documents are missing.",
-  AADHAAR_REQUIRED_FOR_APPOINTMENT:
-    "Doctor appointment not allowed. Aadhaar number and card copy are pending for this patient.",
   CREATE_GUARDIAN_CONFLICT: "Patient Guardian details already exists",
   FAILED_CREATING_PATIENT: "Failed Creating Patient. Please try again !",
   NO_PATIENT_FOUND: "No Patient Found",

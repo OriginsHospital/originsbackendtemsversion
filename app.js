@@ -10,7 +10,6 @@ const RedisStore = require("connect-redis").default;
 const { v4: uuid4 } = require("uuid");
 const cookieParser = require("cookie-parser");
 const https = require("https");
-const http = require("http");
 const path = require("path");
 const fs = require("fs");
 const cron = require("node-cron");
@@ -24,14 +23,21 @@ let redisStore = new RedisStore({
 class App {
   constructor() {
     this.app = express();
-    this.httpServer = null;
-    this.socketServer = null;
   }
 
   async startApp() {
     this.app.use(
       cors({
-        origin: process.env.FRONTEND_URL,
+        exposedHeaders: ["filename", "Content-Disposition"],
+        origin: [
+          "http://localhost:3001",
+          "https://localhost:3001",
+          "http://localhost:3000",
+          "https://localhost:3000",
+          "http://13.234.149.138:42000",
+          "https://hms-app-alpha.vercel.app",
+          "https://www.originshms.com"
+        ], // Replace with your frontend domain
         credentials: true
       })
     );
@@ -49,8 +55,8 @@ class App {
         cookie: {
           httpOnly: true,
           maxAge: +process.env.IDLE_SESSION_TIMEOUT,
-          secure: process.env.USE_HTTPS === "true",
-          sameSite: process.env.USE_HTTPS === "true" ? "None" : "Lax"
+          secure: true,
+          sameSite: "None"
         },
         resave: false,
         rolling: true,
@@ -96,59 +102,19 @@ class App {
   }
 
   async listen() {
-    const port = process.env.PORT || 3000;
-    const useHttps = process.env.USE_HTTPS === "true";
-    
-    if (useHttps) {
-      const sslServer = https.createServer(
-        {
-          key: fs.readFileSync(path.join(__dirname, "cert", "key.pem")),
-          cert: fs.readFileSync(path.join(__dirname, "cert", "cert.pem"))
-        },
-        this.app
-      );
-      this.httpServer = sslServer;
-      sslServer.listen(port, err => {
-        if (err) {
-          throw new Error("Application Could not Start", err);
-        }
-        console.log(`Application Running on HTTPS Port ${port}`);
-        
-        // Initialize Socket.io server for Teams module
-        try {
-          const TeamsSocketServer = require("./socket/teamsSocketServer");
-          this.socketServer = new TeamsSocketServer(this.httpServer);
-          console.log("Teams Socket.io server initialized");
-        } catch (socketError) {
-          console.log("Socket.io not available:", socketError.message);
-        }
-      });
-    } else {
-      this.httpServer = http.createServer(this.app);
-      this.httpServer.listen(port, err => {
-        if (err) {
-          throw new Error("Application Could not Start", err);
-        }
-        console.log(`Application Running on HTTP Port ${port}`);
-        
-        // Initialize Socket.io server for Teams module
-        try {
-          const TeamsSocketServer = require("./socket/teamsSocketServer");
-          this.socketServer = new TeamsSocketServer(this.httpServer);
-          console.log("Teams Socket.io server initialized");
-        } catch (socketError) {
-          console.log("Socket.io not available:", socketError.message);
-        }
-      });
-    }
-  }
-  
-  getHttpServer() {
-    return this.httpServer;
-  }
-  
-  getSocketServer() {
-    return this.socketServer;
+    const sslServer = https.createServer(
+      {
+        key: fs.readFileSync(path.join(__dirname, "cert", "key.pem")),
+        cert: fs.readFileSync(path.join(__dirname, "cert", "cert.pem"))
+      },
+      this.app
+    );
+    sslServer.listen(process.env.PORT, err => {
+      if (err) {
+        throw new Error("Application Could not Start", err);
+      }
+      console.log(`Application Running on Port ${process.env.PORT}`);
+    });
   }
 }
 

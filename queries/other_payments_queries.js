@@ -3,7 +3,7 @@ SELECT
 	popa.id as refId,
 	popa.patientId,
 	CONCAT(pm.lastName , ' ', COALESCE(pm.firstName)) as patientName,
-	COALESCE(popa.billingCategory, popa.appointmentReason) as paymentReason, 
+	popa.appointmentReason as paymentReason, 
 	popa.amount as totalAmount,
 	COALESCE((
 		SELECT
@@ -74,7 +74,7 @@ WHERE
 `;
 
 const purchaseInformationForProductTable = `
-SELECT COALESCE(popa.billingCategory, popa.appointmentReason) as itemName, opom.paidOrderAmountBeforeDiscount as totalCost FROM other_payment_orders_master opom 
+SELECT popa.appointmentReason as itemName, opom.paidOrderAmountBeforeDiscount as totalCost FROM other_payment_orders_master opom 
 	INNER JOIN patient_other_payment_associations popa on popa.id  = opom.refId
 where opom.orderId  = :orderNo
 `;
